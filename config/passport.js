@@ -13,7 +13,7 @@ module.exports = function (passport) {
   
         db.all(sqlFindEmail, email, (err, row) => {
           
-          if (row.length == 0) {
+          if (!row) {
             return done(null, false, { message: 'That email is not registered' });
           }
   

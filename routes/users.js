@@ -7,27 +7,30 @@ const sqlite3 = require("sqlite3").verbose();
 var db = new sqlite3.Database(file);
 const { forwardAuthenticated } = require('../config/auth');
 
-// Login Page
-router.get('/login', forwardAuthenticated, (req, res) => res.render('login'));
-
-// Register Page
-router.get('/register', forwardAuthenticated, (req, res) => res.render('register'));
-
 // Register
 router.post('/register', (req, res) => {
-  const { name, email, password, password2 } = req.body;
-  let errors = [];
+  var { name, email, password, password2 } = req.body;
+  var errors = [];
 
   if (!name || !email || !password || !password2) {
-    errors.push({ msg: 'Please enter all fields' });
+    errors.push({ msg: '欄位不可為空' });
   }
 
-  if (password != password2) {
-    errors.push({ msg: 'Passwords do not match' });
+  var pattern = /[<>]/g;
+  var nameCheck = pattern.test(name);
+  var emailCheck = pattern.test(email);
+  var passwordCheck = pattern.test(password);
+
+  if (nameCheck || emailCheck || passwordCheck) {
+    errors.push({ msg: '請勿輸入特殊字元' });
   }
 
   if (password.length < 6) {
-    errors.push({ msg: 'Password must be at least 6 characters' });
+    errors.push({ msg: '密碼長度要大於6' });
+  }
+
+  if (password != password2) {
+    errors.push({ msg: '密碼不相同' });
   }
 
   if (errors.length > 0) {
@@ -42,8 +45,8 @@ router.post('/register', (req, res) => {
     db.serialize(() => {
       db.run("CREATE TABLE IF NOT EXISTS User (name TEXT, email TEXT, password TEXT)")
 
-      const sqlFindEmail = `SELECT * FROM User WHERE email = ?`;
-
+      var sqlFindEmail = `SELECT * FROM User WHERE email = ?`;
+      
       db.all(sqlFindEmail, email, (err, row) => {
 
         if (row.length > 0) {
@@ -56,19 +59,17 @@ router.post('/register', (req, res) => {
             password2
           });
         } else {
+          var salt = bcrypt.genSaltSync(10);
+          var hash = bcrypt.hashSync(password, salt);
 
-          bcrypt.genSalt(10, (err, salt) => {
-            bcrypt.hash(password, salt, (err, hash) => {
-              if (err) throw err;
-              const sqlInsertUser = "INSERT INTO User VALUES (?, ?, ?);";
-              db.run(sqlInsertUser, [name, email, hash]);
-              req.flash(
-                'success_msg',
-                'You are now registered and can log in'
-              );
-              res.redirect('/users/login');
-            });
-          });
+          const sqlInsertUser = "INSERT INTO User VALUES (?, ?, ?);";
+          db.run(sqlInsertUser, [name, email, hash]);
+          req.flash(
+            'success_msg',
+            'You are now registered and can log in'
+          );
+          res.redirect('/users/login');
+
         }
       })
 
@@ -92,5 +93,12 @@ router.get('/logout', (req, res) => {
   req.flash('success_msg', 'You are logged out');
   res.redirect('/users/login');
 });
+
+// Login Page
+router.get('/login', forwardAuthenticated, (req, res) => res.render('login'));
+
+// Register Page
+router.get('/register', forwardAuthenticated, (req, res) => res.render('register'));
+
 
 module.exports = router;
